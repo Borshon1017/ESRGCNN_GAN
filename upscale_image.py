@@ -4,7 +4,7 @@ from torchvision import transforms
 from PIL import Image
 import os
 
-# Import the generator model (assuming it's named `generator.py`)
+# Import the generator model
 from model.generator import Net as Generator
 
 def load_model(checkpoint_path, device):
