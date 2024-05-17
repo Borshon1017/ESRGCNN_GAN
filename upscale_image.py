@@ -54,10 +54,10 @@ def upscale_image(model, image_path, output_path, device):
     print(f"Upscaled image saved to {output_path}")
 
 if __name__ == "__main__":
-    # Define fixed paths
-    input_dir = r'C:\Users\Borshon Alfred Gomes\Desktop\University\ESRGCNN_GAN\TestUpscale'
-    output_dir = r'C:\Users\Borshon Alfred Gomes\Desktop\University\ESRGCNN_GAN\OutputUpscale'
-    checkpoint_path = r'C:\Users\Borshon Alfred Gomes\Desktop\University\ESRGCNN_GAN\checkpoint\checkpoint_epoch_99.pth'
+    # Define relative paths
+    input_dir = 'TestUpscale'
+    output_dir = 'OutputUpscale'
+    checkpoint_path = 'checkpoint/checkpoint_epoch_99.pth'
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = load_model(checkpoint_path, device)
