@@ -1,119 +1,102 @@
-import os
-import glob
-import h5py
-import random
+import torch
+import torch.nn as nn
 import numpy as np
-from PIL import Image
-import torch.utils.data as data
-import torchvision.transforms as transforms
-
-def random_crop(hr, lr, size, scale):
-    h, w = lr.shape[:-1] #h,w,channel [:-1] beside the final element, such as channel 
-    x = random.randint(0, w-size) #random number
-    y = random.randint(0, h-size)
-
-    hsize = size*scale
-    hx, hy = x*scale, y*scale
-
-    crop_lr = lr[y:y+size, x:x+size].copy() #low-resolution patch
-    crop_hr = hr[hy:hy+hsize, hx:hx+hsize].copy()#high-resolution patch
-
-    return crop_hr, crop_lr
+from skimage.metrics import peak_signal_noise_ratio as psnr
+from skimage.metrics import structural_similarity as ssim
+import matplotlib.pyplot as plt
+from dataset import TrainDataset  
 
 
-def random_flip_and_rotate(im1, im2):
-    if random.random() < 0.5:
-        im1 = np.flipud(im1) #left and right move
-        im2 = np.flipud(im2)
+class Generator(nn.Module):
+    def __init__(self):
+        super(Generator, self).__init__()
+        self.main = nn.Sequential(
+         
+        )
 
-    if random.random() < 0.5: #up and down move
-        im1 = np.fliplr(im1)
-        im2 = np.fliplr(im2)
-
-    angle = random.choice([0, 1, 2, 3]) #rote
-    im1 = np.rot90(im1, angle)
-    im2 = np.rot90(im2, angle)
-
-    # have to copy before be called by transform function
-    return im1.copy(), im2.copy()
+    def forward(self, x):
+        return self.main(x)
 
 
-class TrainDataset(data.Dataset):
-    def __init__(self, path, size, scale):
-        super(TrainDataset, self).__init__()
+generator = Generator()
+generator.load_state_dict(torch.load('path/to/your/trained_generator.pth'))  # Update the path to your model
+generator.eval()
 
-        self.size = size
-        h5f = h5py.File(path, "r")
-        
-        self.hr = [v[:] for v in h5f["HR"].values()]
-        # perform multi-scale training
-        if scale == 0:
-            self.scale = [2, 3, 4]
-            self.lr = [[v[:] for v in h5f["X{}".format(i)].values()] for i in self.scale]
-            
-        else:
-            self.scale = [scale]
-            self.lr = [[v[:] for v in h5f["X{}".format(scale)].values()]]
-        
-        h5f.close()
 
-        self.transform = transforms.Compose([
-            transforms.ToTensor()
-        ])
+test_dataset_set5 = TrainDataset(hr_dir='path/to/Set5/HR', lr_dir='path/to/Set5/LR', scale=4, size=256)  # Update with your dataset paths and scale
+test_dataset_set14 = TrainDataset(hr_dir='path/to/Set14/HR', lr_dir='path/to/Set14/LR', scale=4, size=256)
+test_dataset_bsd100 = TrainDataset(hr_dir='path/to/BSD100/HR', lr_dir='path/to/BSD100/LR', scale=4, size=256)
+test_dataset_urban100 = TrainDataset(hr_dir='path/to/Urban100/HR', lr_dir='path/to/Urban100/LR', scale=4, size=256)
 
-    def __getitem__(self, index):
-        size = self.size
-        item = [(self.hr[index], self.lr[i][index]) for i, _ in enumerate(self.lr)]
-        #i is the number, _ is the context
-        item = [random_crop(hr, lr, size, self.scale[i]) for i, (hr, lr) in enumerate(item)]
-        item = [random_flip_and_rotate(hr, lr) for hr, lr in item]
-        
-        return [(self.transform(hr), self.transform(lr)) for hr, lr in item] #tranform array (hr,lr) into tensor
 
-    def __len__(self):
-        return len(self.hr)
-        
+test_loader_set5 = torch.utils.data.DataLoader(test_dataset_set5, batch_size=1, shuffle=False)
+test_loader_set14 = torch.utils.data.DataLoader(test_dataset_set14, batch_size=1, shuffle=False)
+test_loader_bsd100 = torch.utils.data.DataLoader(test_dataset_bsd100, batch_size=1, shuffle=False)
+test_loader_urban100 = torch.utils.data.DataLoader(test_dataset_urban100, batch_size=1, shuffle=False)
 
-class TestDataset(data.Dataset):
-    def __init__(self, dirname, scale):
-        super(TestDataset, self).__init__()
 
-        self.name  = dirname.split("/")[-1]
-        self.scale = scale
-        
-        if "DIV" in self.name:
-            self.hr = glob.glob(os.path.join("{}_HR".format(dirname), "*.png"))
-            self.lr = glob.glob(os.path.join("{}_LR_bicubic".format(dirname), 
-                                             "X{}/*.png".format(scale)))
-        else:
-            all_files = glob.glob(os.path.join(dirname, "x{}/*.png".format(scale)))
-            self.hr = [name for name in all_files if "HR" in name]
-            self.lr = [name for name in all_files if "LR" in name]
+def evaluate_model(generator, dataloader):
+    psnr_values = []
+    ssim_values = []
 
-        self.hr.sort()
-        self.lr.sort()
+    for lr, hr in dataloader:
+        lr = lr.cuda() 
+        hr = hr.cuda()
+        sr = generator(lr)
+        sr = sr.detach().cpu().numpy().squeeze()
+        hr = hr.detach().cpu().numpy().squeeze()
 
-        self.transform = transforms.Compose([
-            transforms.ToTensor()
-        ])
+        psnr_value = psnr(hr, sr, data_range=hr.max() - hr.min())
+        ssim_value = ssim(hr, sr, multichannel=True)
 
-    def __getitem__(self, index):
-        hr = Image.open(self.hr[index])
-        lr = Image.open(self.lr[index])
-        '''
-        #This is only used to test code, which makes me more know the code. 
-        ss = np.asarray(hr) (644,1024,3)
-        print ss.shape
-        '''
-        hr = hr.convert("RGB")
-        lr = lr.convert("RGB")
-        '''
-        tss = np.asarray(hr) (644,1024,3)
-        print tss.shape
-        '''
-        filename = self.hr[index].split("/")[-1]
-        #keep the last string, which is after /. For example, a= 'aaa/asds.bmp', a.split("/")[-1] = asds 
-        return self.transform(hr), self.transform(lr), filename
+        psnr_values.append(psnr_value)
+        ssim_values.append(ssim_value)
 
-    def __len__(self):
-        return len(self.hr)
+    avg_psnr = np.mean(psnr_values)
+    avg_ssim = np.mean(ssim_values)
+
+    return avg_psnr, avg_ssim
+
+
+psnr_set5, ssim_set5 = evaluate_model(generator, test_loader_set5)
+psnr_set14, ssim_set14 = evaluate_model(generator, test_loader_set14)
+psnr_bsd100, ssim_bsd100 = evaluate_model(generator, test_loader_bsd100)
+psnr_urban100, ssim_urban100 = evaluate_model(generator, test_loader_urban100)
+
+print(f"Set5: PSNR = {psnr_set5}, SSIM = {ssim_set5}")
+print(f"Set14: PSNR = {psnr_set14}, SSIM = {ssim_set14}")
+print(f"BSD100: PSNR = {psnr_bsd100}, SSIM = {ssim_bsd100}")
+print(f"Urban100: PSNR = {psnr_urban100}, SSIM = {ssim_urban100}")
+
+
+def visualize_results(generator, dataloader, save_path):
+    for i, (lr, hr) in enumerate(dataloader):
+        lr = lr.cuda()  
+        sr = generator(lr)
+        sr = sr.detach().cpu().numpy().squeeze()
+        hr = hr.detach().cpu().numpy().squeeze()
+        lr = lr.detach().cpu().numpy().squeeze()
+
+        plt.figure(figsize=(15, 5))
+
+        plt.subplot(1, 3, 1)
+        plt.imshow(lr.transpose(1, 2, 0)) 
+        plt.title('Low Resolution')
+
+        plt.subplot(1, 3, 2)
+        plt.imshow(hr.transpose(1, 2, 0))  
+        plt.title('High Resolution')
+
+        plt.subplot(1, 3, 3)
+        plt.imshow(sr.transpose(1, 2, 0))  
+        plt.title('Super Resolved')
+
+        plt.savefig(f"{save_path}/comparison_{i}.png")
+        plt.close()
+
+
+save_path = 'path/to/save/results'  
+visualize_results(generator, test_loader_set5, save_path)
+visualize_results(generator, test_loader_set14, save_path)
+visualize_results(generator, test_loader_bsd100, save_path)
+visualize_results(generator, test_loader_urban100, save_path)

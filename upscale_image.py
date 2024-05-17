@@ -3,15 +3,13 @@ import torchvision
 from torchvision import transforms
 from PIL import Image
 import os
-
-# Import the generator model
 from model.generator import Net as Generator
 
 def load_model(checkpoint_path, device):
-    model = Generator(scale_factor=4)  # Ensure the scale_factor matches your training setup
+    model = Generator(scale_factor=4) 
     print(f"Loading model from checkpoint: {checkpoint_path}")
     checkpoint = torch.load(checkpoint_path, map_location=device)
-    model.load_state_dict(checkpoint['generator'])  # Load only the generator state
+    model.load_state_dict(checkpoint['generator'])  
     model.to(device)
     model.eval()
     print("Model loaded successfully")
@@ -54,7 +52,7 @@ def upscale_image(model, image_path, output_path, device):
     print(f"Upscaled image saved to {output_path}")
 
 if __name__ == "__main__":
-    # Define relative paths
+    #  relative paths
     input_dir = 'TestUpscale'
     output_dir = 'OutputUpscale'
     checkpoint_path = 'checkpoint/checkpoint_epoch_99.pth'
@@ -62,10 +60,10 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = load_model(checkpoint_path, device)
 
-    # Create output directory if it doesn't exist
+   
     os.makedirs(output_dir, exist_ok=True)
 
-    # Iterate over all images in the input directory
+
     for image_name in os.listdir(input_dir):
         if image_name.endswith('.png'):
             input_path = os.path.join(input_dir, image_name)

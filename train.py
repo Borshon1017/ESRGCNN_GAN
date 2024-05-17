@@ -28,15 +28,15 @@ cfg = Config()
 def main(cfg):
     print(json.dumps(vars(cfg), indent=4, sort_keys=True))
     
-    # Import the models
+    # Import
     Generator = importlib.import_module("model.generator").Net
     Discriminator = importlib.import_module("model.discriminator").Net
     
-    # Initialize models
+   
     generator = Generator(scale_factor=cfg.scale)
     discriminator = Discriminator()
 
-    # Define loss functions and optimizers
+    # loss functions
     criterion_GAN = nn.BCELoss()
     criterion_content = nn.MSELoss()
 
