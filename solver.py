@@ -184,7 +184,8 @@ class Solver():
             mean_ssim += calculate_ssim(im1,im2)/len(test_data)
             #mean_psnr1 += psnr(im3, im4) / len(test_data)
             #print 'step is %d, mean_psnr is %f' %(step,mean_psnr)
-        print 'epochs is %d, mean_psnr is %f, mean_ssim is %f' %(self.step,mean_psnr,mean_ssim)
+        print('epochs is %d, mean_psnr is %f, mean_ssim is %f' % (self.step, mean_psnr, mean_ssim))
+
         #print 'epochs is %d, mean_psnr is %f' %(self.step,mean_psnr1)
         #print mean_psnr#, mean_psnr1
         return mean_psnr

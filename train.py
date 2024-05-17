@@ -1,55 +1,91 @@
 import os
 import sys
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-import json
-import argparse
 import importlib
-from solver import Solver
+import argparse
+import json
+import torch
+from torch.utils.data import DataLoader
+from torch import nn, optim
+from dataset import TrainDataset  # Ensure you import your dataset
 
-def parse_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--model", type=str)
-    parser.add_argument("--ckpt_name", type=str)
-    
-    parser.add_argument("--print_interval", type=int, default=1000) #original data is 1000
-    parser.add_argument("--train_data_path", type=str, 
-                        default="dataset/DIV2K_train.h5")
-    parser.add_argument("--ckpt_dir", type=str,
-                        default="checkpoint")
-    parser.add_argument("--sample_dir", type=str,
-                        default="sample/")
-    
-    parser.add_argument("--num_gpu", type=int, default=1)
-    parser.add_argument("--shave", type=int, default=20)
-    parser.add_argument("--scale", type=int, default=2)
+class Config:
+    def __init__(self):
+        self.model = 'generator'
+        self.hr_data_dir = 'dataset/DIV2K/DIV2K_train_HR'  # Adjust the path to your HR dataset folder
+        self.lr_data_dir = 'dataset/DIV2K/DIV2K_train_LR_bicubic'  # Adjust the path to your LR dataset folder
+        self.scale = 2
+        self.ckpt_path = 'checkpoint'
+        self.sample_dir = 'samples'
+        self.batch_size = 16
+        self.epoch = 100
+        self.lr = 0.0002
+        self.b1 = 0.5
+        self.b2 = 0.999
+        self.patch_size = 64
 
-    parser.add_argument("--verbose", action="store_true", default="store_true")
-
-    parser.add_argument("--group", type=int, default=1)
-    
-    parser.add_argument("--patch_size", type=int, default=64)
-    parser.add_argument("--batch_size", type=int, default=64)
-    parser.add_argument("--max_steps", type=int, default=200000)
-    parser.add_argument("--decay", type=int, default=150000)
-    parser.add_argument("--lr", type=float, default=0.0001)
-    parser.add_argument("--clip", type=float, default=10.0)
-
-    #parser.add_argument("--loss_fn", type=str, 
-                        #choices=["MSE", "L1", "SmoothL1"], default="L1") #tcw201904082029
-    parser.add_argument("--loss_fn", type=str, 
-                        choices=["MSE", "L1", "SmoothL1"], default="MSE")
-    return parser.parse_args()
+cfg = Config()
 
 def main(cfg):
-    # dynamic import using --model argument
-    net = importlib.import_module("model.{}".format(cfg.model)).Net
     print(json.dumps(vars(cfg), indent=4, sort_keys=True))
     
-    solver = Solver(net, cfg)
-    #print 'ds'
-    solver.fit()
-    #print 'sdsddwdew'
+    # Import the models
+    Generator = importlib.import_module("model.generator").Net
+    Discriminator = importlib.import_module("model.discriminator").Net
+    
+    # Initialize models
+    generator = Generator(scale_factor=cfg.scale)
+    discriminator = Discriminator()
+
+    # Define loss functions and optimizers
+    criterion_GAN = nn.BCELoss()
+    criterion_content = nn.MSELoss()
+
+    optimizer_G = optim.Adam(generator.parameters(), lr=cfg.lr, betas=(cfg.b1, cfg.b2))
+    optimizer_D = optim.Adam(discriminator.parameters(), lr=cfg.lr, betas=(cfg.b1, cfg.b2))
+
+    # Prepare data
+    train_dataset = TrainDataset(cfg.hr_data_dir, cfg.lr_data_dir, scale=cfg.scale, size=cfg.patch_size)
+    train_loader = DataLoader(train_dataset, batch_size=cfg.batch_size, shuffle=True)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    generator.to(device)
+    discriminator.to(device)
+
+    # Training loop
+    for epoch in range(cfg.epoch):
+        for i, batch in enumerate(train_loader):
+            imgs_lr, imgs_hr = batch
+            imgs_lr, imgs_hr = imgs_lr.to(device), imgs_hr.to(device)
+            
+            valid = torch.ones((imgs_lr.size(0), 1)).to(device)
+            fake = torch.zeros((imgs_lr.size(0), 1)).to(device)
+            
+            # Train Generator
+            optimizer_G.zero_grad()
+            gen_hr = generator(imgs_lr)
+            loss_content = criterion_content(gen_hr, imgs_hr)
+            loss_GAN = criterion_GAN(discriminator(gen_hr), valid)
+            loss_G = loss_content + 1e-3 * loss_GAN
+            loss_G.backward()
+            optimizer_G.step()
+            
+            # Train Discriminator
+            optimizer_D.zero_grad()
+            loss_real = criterion_GAN(discriminator(imgs_hr), valid)
+            loss_fake = criterion_GAN(discriminator(gen_hr.detach()), fake)
+            loss_D = (loss_real + loss_fake) / 2
+            loss_D.backward()
+            optimizer_D.step()
+
+            print(f"[Epoch {epoch}/{cfg.epoch}] [Batch {i}/{len(train_loader)}] [D loss: {loss_D.item()}] [G loss: {loss_G.item()}]")
+
+        # Save checkpoint
+        torch.save({
+            'generator': generator.state_dict(),
+            'discriminator': discriminator.state_dict(),
+            'optimizer_G': optimizer_G.state_dict(),
+            'optimizer_D': optimizer_D.state_dict(),
+        }, os.path.join(cfg.ckpt_path, f"checkpoint_epoch_{epoch}.pth"))
 
 if __name__ == "__main__":
-    cfg = parse_args()
     main(cfg)
