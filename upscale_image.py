@@ -22,7 +22,8 @@ def preprocess_image(image_path, device):
     image = Image.open(image_path).convert('RGB')
     transform = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])  # Ensure the same normalization as during training
+        # Adjust normalization: If the model was trained with images normalized to [-1, 1], this is correct.
+        transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
     ])
     image = transform(image).unsqueeze(0).to(device)
     print("Image preprocessed successfully")
@@ -30,6 +31,8 @@ def preprocess_image(image_path, device):
 
 def postprocess_image(tensor):
     print("Postprocessing image")
+    # Ensure values are in the range [-1, 1]
+    tensor = torch.clamp(tensor, min=-1.0, max=1.0)
     # Scale back the values from [-1, 1] to [0, 1]
     tensor = (tensor + 1) / 2
     transform = transforms.ToPILImage()
