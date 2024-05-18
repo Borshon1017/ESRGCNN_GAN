@@ -6,13 +6,13 @@ import json
 import torch
 from torch.utils.data import DataLoader
 from torch import nn, optim
-from dataset import TrainDataset  # Ensure you import your dataset
+from dataset import TrainDataset 
 
 class Config:
     def __init__(self):
         self.model = 'generator'
-        self.hr_data_dir = 'dataset/DIV2K/DIV2K_train_HR'  # Adjust the path to your HR dataset folder
-        self.lr_data_dir = 'dataset/DIV2K/DIV2K_train_LR_bicubic'  # Adjust the path to your LR dataset folder
+        self.hr_data_dir = 'dataset/DIV2K/DIV2K_train_HR'  
+        self.lr_data_dir = 'dataset/DIV2K/DIV2K_train_LR_bicubic' 
         self.scale = 2
         self.ckpt_path = 'checkpoint'
         self.sample_dir = 'samples'
