@@ -6,7 +6,7 @@ import os
 from model.generator import Net as Generator
 
 def load_model(checkpoint_path, device):
-    model = Generator(scale_factor=4) 
+    model = Generator(scale_factor=2) 
     print(f"Loading model from checkpoint: {checkpoint_path}")
     checkpoint = torch.load(checkpoint_path, map_location=device)
     model.load_state_dict(checkpoint['generator'])  

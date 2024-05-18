@@ -65,7 +65,7 @@ def main(cfg):
             gen_hr = generator(imgs_lr)
             loss_content = criterion_content(gen_hr, imgs_hr)
             loss_GAN = criterion_GAN(discriminator(gen_hr), valid)
-            loss_G = loss_content + 1e-3 * loss_GAN
+            loss_G = loss_content + 0.001 * loss_GAN
             loss_G.backward()
             optimizer_G.step()
             
