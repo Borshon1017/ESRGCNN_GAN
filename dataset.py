@@ -49,12 +49,12 @@ class Generator(nn.Module):
     def forward(self, x):
         return self.main(x)
 
-# Update the path to your pre-trained generator model
+
 generator = Generator()
 generator.load_state_dict(torch.load('checkpoint/checkpoint_epoch_99.pth'))
 generator.eval()
 
-# Update with your dataset paths and scale
+
 test_dataset_set5 = TrainDataset(hr_dir='dataset/Set5/x4', lr_dir='dataset/Set5/x4', scale=4, size=256)
 test_dataset_set14 = TrainDataset(hr_dir='dataset/Set14/x4', lr_dir='dataset/Set14/x4', scale=4, size=256)
 test_dataset_bsd100 = TrainDataset(hr_dir='dataset/BSD100/x4', lr_dir='dataset/BSD100/x4', scale=4, size=256)
@@ -122,7 +122,7 @@ def visualize_results(generator, dataloader, save_path):
         plt.savefig(f"{save_path}/comparison_{i}.png")
         plt.close()
 
-# Ensure this directory exists or create it before running the script
+
 save_path = 'results'
 os.makedirs(save_path, exist_ok=True)
 
